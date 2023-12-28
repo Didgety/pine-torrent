@@ -1,32 +1,10 @@
-use serde_json;
+mod crypt;
+
+// use serde_json;
 use std::env;
 
 // Available if you need it!
 // use serde_bencode
-
-#[allow(dead_code)]
-fn decode_bencoded_value(encoded_value: &str) -> serde_json::Value {
-    // If it starts with 'i'
-    if let Some(val) = encoded_value.strip_prefix('i') {
-        // Get the bytes preceding the end delimeter 'e'
-        if let Some((digits, _)) = val.split_once('e') {
-            if let Ok(n) = digits.parse::<i64>() {
-                return n.into();
-            }
-        }
-    }
-    // If encoded_value starts with a digit, it's a number
-    if encoded_value.chars().next().unwrap().is_digit(10) {
-        // Example: "5:hello" -> "hello"
-        let colon_index = encoded_value.find(':').unwrap();
-        let number_string = &encoded_value[..colon_index];
-        let number = number_string.parse::<i64>().unwrap();
-        let string = &encoded_value[colon_index + 1..colon_index + 1 + number as usize];
-        return serde_json::Value::String(string.to_string());
-    } else {
-        panic!("Unhandled encoded value: {}", encoded_value)
-    }
-}
 
 // Usage: your_bittorrent.sh decode "<encoded_value>"
 fn main() {
@@ -38,9 +16,9 @@ fn main() {
         eprintln!("Logs from your program will appear here!");
 
         // Uncomment this block to pass the first stage
-        let encoded_value = &args[2];
-        let decoded_value = decode_bencoded_value(encoded_value);
-        println!("{}", decoded_value.to_string());
+        let encoded_value: &[u8] = &args[2].as_bytes();
+        let decoded_value = crypt::decode_bencoded_value(encoded_value);
+        println!("{}", decoded_value.0.to_string());
     } else {
         println!("unknown command: {}", args[1])
     }
