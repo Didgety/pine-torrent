@@ -6,6 +6,15 @@ use std::env;
 
 #[allow(dead_code)]
 fn decode_bencoded_value(encoded_value: &str) -> serde_json::Value {
+    // If it starts with 'i'
+    if let Some(val) = encoded_value.strip_prefix('i') {
+        // Get the bytes preceding the end delimeter 'e'
+        if let Some((digits, _)) = val.split_once('e') {
+            if let Ok(n) = digits.parse::<i64>() {
+                return n.into();
+            }
+        }
+    }
     // If encoded_value starts with a digit, it's a number
     if encoded_value.chars().next().unwrap().is_digit(10) {
         // Example: "5:hello" -> "hello"
@@ -25,8 +34,8 @@ fn main() {
     let command = &args[1];
 
     if command == "decode" {
-        // You can use print statements as follows for debugging, they'll be visible when running tests.
-        // println!("Logs from your program will appear here!");
+        // enable debug flag to view output without breaking tests
+        eprintln!("Logs from your program will appear here!");
 
         // Uncomment this block to pass the first stage
         let encoded_value = &args[2];
