@@ -1,10 +1,12 @@
+use anyhow::Context;
 use core::fmt;
+
 #[cfg(not(feature = "std"))]
 use core::fmt::Display;
 #[cfg(feature = "std")]
 use std::fmt::Display;
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, usize};
 use hex::decode;
 use serde_json;
 
@@ -36,16 +38,16 @@ impl BEStr {
         self.0.len()
     }
 
-    fn from_slice(val: &[u8]) -> Self {
+    pub fn from_slice(val: &[u8]) -> Self {
         let vec = Vec::from(val);
         BEStr(vec)
     }
 
-    fn from_vec(val: Vec<u8>) -> Self {
+    pub fn from_vec(val: Vec<u8>) -> Self {
         BEStr(val)
     }
 
-    fn from_str(val: &str) -> Self {
+    pub fn from_str(val: &str) -> Self {
         BEStr(val.as_bytes().to_vec())
     }
 }
@@ -59,7 +61,7 @@ impl From<&BEStr> for String {
 
 impl fmt::Display for BEStr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "\"{}\"", String::from(self))
+        write!(f, "\"{}\"", String::from_utf8_lossy(&self.0))
     }
 }
 
@@ -76,7 +78,7 @@ pub enum BEncodedData {
 
 impl From<&[u8]> for BEncodedData {
     fn from(val: &[u8]) -> Self {
-        let (_, decoded) = d_b_v(val);
+        let (_, decoded) = decode_bencoded_value(val);
         decoded
     }
 }
@@ -98,7 +100,7 @@ impl fmt::Display for BEncodedData {
             }
             BEncodedData::Dict(d) => {
                 let elem: Vec<String> = d.iter()
-                    .map(|(k, v)| format!("{}: {}", k, v))
+                    .map(|(k, v)| format!("{}:{}", k, v))
                     .collect();
                 write!(f, "{{{}}}", elem.join(","))
                 // write!(f, "[{}]", d)
@@ -110,7 +112,8 @@ impl fmt::Display for BEncodedData {
     }
 }
 
-pub fn d_b_v<V: AsRef<[u8]> + std::fmt::Debug>(encoded_value: V) -> (usize, BEncodedData) {
+pub fn decode_bencoded_value<V: AsRef<[u8]> + std::fmt::Debug>(encoded_value: V) 
+-> (usize, BEncodedData) {
     let first = encoded_value.as_ref()[0];
     // println!("first {}", first.to_string());
     match first {
@@ -118,27 +121,27 @@ pub fn d_b_v<V: AsRef<[u8]> + std::fmt::Debug>(encoded_value: V) -> (usize, BEnc
             // println!("int {}", first.to_string());
             // let(idx, val) = d_i(&encoded_value);
             // println!("int end idx {} val {}", idx, val);
-            return d_i(encoded_value)
+            return decode_int(encoded_value)
         }
         b'l' => {
             // println!("list {}", first.to_string());
             // let(idx, val) = d_l(&encoded_value);
             // println!("list end idx {} val {}", idx, val);
-            return d_l(encoded_value)
+            return decode_list(encoded_value)
         }
         b'd' => {
             // println!("dict {}", first.to_string());
             // let(idx, val) = d_d(&encoded_value);
             // println!("dict end idx {} val {}", idx, val);
-            let (val, _) = decode_dict(encoded_value.as_ref());
-            println!("{val}");
-            return d_d(encoded_value)
+            //let (val, _) = decode_dict(encoded_value.as_ref());
+            //println!("{val}");
+            return decode_dict(encoded_value)
         }
         b'0'..=b'9' => {
             // println!("str {}", first.to_string());
             // let(idx, val) = d_s(&encoded_value);
             // println!("str end idx {} val {}", idx, val);
-            return d_s(encoded_value)
+            return decode_str(encoded_value)
         }
         _ => {
             println!("{:#?}", encoded_value.as_ref()[0].to_be_bytes());
@@ -147,105 +150,72 @@ pub fn d_b_v<V: AsRef<[u8]> + std::fmt::Debug>(encoded_value: V) -> (usize, BEnc
     }
 }
 
-pub fn decode_bencoded_value(encoded_value: &[u8]) -> (serde_json::Value, &[u8]) {
-    let first = encoded_value.first().clone().unwrap();
-    match first {
-        b'i' => {
-            return decode_integer(encoded_value)
-        }
-        b'l' => {
-            return decode_list(encoded_value)
-        }
-        b'd' => {
-            return decode_dict(encoded_value)
-        }
-        b'0'..=b'9' => {
-            return decode_string(encoded_value)
-        }
-        _ => {
-            println!("{:#?}", encoded_value[0].to_be_bytes());
-            panic!("Unhandled encoded value: {:#?}", encoded_value)
-        }
-    }
-}
-
-fn d_i<I: AsRef<[u8]>>(encoded_num: I) -> (usize, BEncodedData) {
+// TODO handle big numbers - max size is not specified
+/// Decode a BEncoded integer
+/// i<num>e
+fn decode_int<I: AsRef<[u8]>>(encoded_num: I) -> (usize, BEncodedData) {
     let encoded_num = encoded_num.as_ref();
     let end_idx = encoded_num.iter().position(|&d| d == b'e').unwrap();
     
-    let num = std::str::from_utf8(&encoded_num[1..end_idx]).unwrap();
-    let num = num.parse::<i64>().unwrap();
-
+    let num = std::str::from_utf8(&encoded_num[1..end_idx]).unwrap()
+        .parse::<i64>().unwrap();
     //println!("{:#?}", end_idx);
     // point to the last character to avoid index out of bounds
     // ie, i52e3:abc
     //        ^
     //        |
-    (end_idx, BEncodedData::Num(num))
-}
-
-/// Decode a BEncoded integer
-/// i<num>e
-fn decode_integer(encoded_value: &[u8]) -> (serde_json::Value, &[u8]) {
-    let end_idx = encoded_value.iter().position(|&d| d == b'e').unwrap();
-    let num = std::str::from_utf8(&encoded_value[1..end_idx]).unwrap();
-    let num = num.parse::<i64>().unwrap();
-
-    (num.into(), &encoded_value[end_idx + 1..])
-}
-
-fn d_s<S: AsRef<[u8]>>(encoded_value: S) -> (usize, BEncodedData) {
-    let encoded_value = encoded_value.as_ref();
-    let delim_idx = encoded_value.iter().position(|&d| d == b':').unwrap();
-    let (len, remainder) = {
-        encoded_value.split_at(delim_idx)
-    };
-
-    let len = std::str::from_utf8(len).unwrap();
-    println!("str len {}", len);
-    let len = len.parse::<usize>().unwrap();
-
-    println!("str {}, len {}, delim idx {}", BEStr::from_slice(encoded_value), len, delim_idx);
-    
-    //println!("{:#?}", delim_idx + len);
-
-    // point to the last character to avoid index out of bounds
-    // ie, 3:abci52e
-    //         ^
-    //         |
-    (delim_idx + len, BEncodedData::ByteStr(BEStr::from_slice(&remainder[delim_idx.. delim_idx + len])))
+    (end_idx + 1, BEncodedData::Num(num))
 }
 
 /// Decode a BEncoded string
 /// <len>:<string>
 /// No validation of len is done
-fn decode_string(encoded_value: &[u8]) -> (serde_json::Value, &[u8]) {
-    //println!("{:#?}", encoded_value);
-    let (len, remainder) = {
-        let delim_idx = encoded_value.iter().position(|&d| d == b':').unwrap();
+fn decode_str<S: AsRef<[u8]>>(encoded_value: S) -> (usize, BEncodedData) {
+    let encoded_value = encoded_value.as_ref();
+    println!("processing string: \n{}", BEStr::from_slice(encoded_value));
+
+    let delim_idx = encoded_value.iter().position(|&d| d == b':').unwrap();
+    let (len, _) = {
         encoded_value.split_at(delim_idx)
     };
 
-    let len = std::str::from_utf8(len).unwrap();
-    let len = len.parse::<usize>().unwrap();
-    let res = String::from_utf8_lossy(&remainder[1..len + 1]);
+    let len = std::str::from_utf8(len).unwrap()
+        .parse::<usize>().unwrap();
+    println!("str len {}\n", len);
 
-    (res.into(), &remainder[len + 1..])
+    let text = BEStr(
+        encoded_value[delim_idx + 1..delim_idx + 1 + len].to_vec()
+    );
+
+    // println!("len {}, delim idx {}\nstr: {}\n", len, delim_idx, BEStr::from_slice(&remainder[delim_idx.. delim_idx + len]));
+    // println!("str remainder: {}\n", BEStr::from_slice(&remainder[delim_idx..]));
+
+    // point to the last character to avoid index out of bounds
+    // ie, 3:abci52e
+    //         ^
+    //         |
+    (delim_idx + len + 1, BEncodedData::ByteStr(text))
 }
 
-fn d_l<L: AsRef<[u8]>>(encoded_list: L) -> (usize, BEncodedData) {
+/// Decoded a BEncoded list
+/// l<any valid BEncoded values>..<><>e
+fn decode_list<L: AsRef<[u8]>>(encoded_list: L) -> (usize, BEncodedData) {
     let encoded_list = encoded_list.as_ref();
     let mut vals = Vec::new();
     // strip the leading 'l'
-    let mut remainder = encoded_list.split_at(1).1;
-    let mut end_idx: usize = 0;
-    
-    while !remainder.is_empty() && !remainder.starts_with(&[b'e']) {
-        let (itr_idx, decoded_value) = d_b_v(remainder);
-        vals.push(decoded_value);
-        remainder = &remainder[itr_idx + 1..];
-        //println!("list ops remainder: {:#?}", remainder);
-        end_idx += itr_idx + 1;
+    let mut encoded_list = &encoded_list[1..];
+    let mut end_idx: usize = 1;
+
+    loop {
+        match encoded_list.iter().next().unwrap() {
+            b'e' => break,
+            _ => {
+                let (itr_idx, decoded_value) = decode_bencoded_value(encoded_list);
+                vals.push(decoded_value);
+                encoded_list = &encoded_list[itr_idx..];
+                end_idx += itr_idx;
+            }
+        }
     }
 
     println!("evaluated list {:#?}", String::from_utf8_lossy(encoded_list));
@@ -255,76 +225,39 @@ fn d_l<L: AsRef<[u8]>>(encoded_list: L) -> (usize, BEncodedData) {
     return (end_idx + 1, BEncodedData::List(vals))
 }
 
-/// Decoded a BEncoded list
-/// l<any valid BEncoded values>..<><>e
-fn decode_list(encoded_value: &[u8]) -> (serde_json::Value, &[u8]) {
-    let mut vals = Vec::new();
-    // strip the leading 'l'
-    let mut remainder = encoded_value.split_at(1).1;
-    
-    while !remainder.is_empty() && !remainder.starts_with(&[b'e']) {
-        let (val, rest) = decode_bencoded_value(remainder);
-        vals.push(val);
-        remainder = rest;
-    }
-    return (vals.into(), &remainder[1..])
-}
-
-fn d_d<D: AsRef<[u8]>>(encoded_dict: D) -> (usize, BEncodedData) {
+/// Decode a BEncoded dictionary
+/// d<b_string><any valid BEncoded value>..<><>e
+fn decode_dict<D: AsRef<[u8]>>(encoded_dict: D) -> (usize, BEncodedData) {
     // Strip leading 'd'
-    let mut remainder = encoded_dict.as_ref().split_at(1).1;
+    let mut encoded_dict = encoded_dict.as_ref().split_at(1).1;
     let mut dict = BEDict::new();
-    let mut end_idx: usize = 0;
+    let mut end_idx: usize = 1;
 
-    while !remainder.is_empty() && !remainder.starts_with(&[b'e']) {
-        println!("init remainder: {:?}", String::from_utf8_lossy(remainder));
-        let (first_idx, decoded_value) = d_b_v(remainder);
-        let key: BEStr;
-        match decoded_value {
-            BEncodedData::ByteStr(s) => {
-                key = s;
-            },
-            data => {
-                panic!("Dict key is not a string: {data:#?}");
+    loop {
+        match encoded_dict.iter().next().unwrap() {
+            b'e' => break,
+            _ => {
+                let (key_idx, key) = decode_bencoded_value(encoded_dict);
+
+                let key = match key {
+                    BEncodedData::ByteStr(s) => s,
+                    data => panic!("Dict key is not a string: {data:#?}"),
+                };
+
+                encoded_dict = &encoded_dict[key_idx..];
+                end_idx += key_idx;
+
+                let (val_idx, val) = decode_bencoded_value(encoded_dict);
+
+                encoded_dict = &encoded_dict[val_idx..];
+                end_idx += val_idx;
+
+                dict.insert(key, val);
             }
         }
-        remainder = remainder.split_at(first_idx + 1).1;
-        println!("split 1 remainder: {:?}", String::from_utf8_lossy(remainder));
-
-        let (second_idx, value) = d_b_v(remainder);
-        remainder = remainder.split_at(second_idx + 1).1;
-        println!("split 2 remainder: {:?}", String::from_utf8_lossy(remainder));
-
-        dict.insert(key, value);
-        
-        end_idx += first_idx + second_idx;
-
     }
     
     (end_idx + 1, BEncodedData::Dict(dict))
-}
-
-/// Decode a BEncoded dictionary
-/// d<b_string><any valid BEncoded value>..<><>e
-fn decode_dict(encoded_value: &[u8]) -> (serde_json::Value, &[u8]) {
-    let mut dict = serde_json::Map::new();
-    // strip the leading 'd'
-    let mut remainder = encoded_value.split_at(1).1;
-
-    while !remainder.is_empty() && !remainder.starts_with(&[b'e']) {      
-        let (key, val_and_rest) = decode_bencoded_value(remainder);
-        let key = match key {
-            serde_json::Value::String(key) => key,
-            key => {
-                panic!("Dict key is not a string: {key:#?}");
-            }
-        };
-        let (val, rest) = decode_bencoded_value(val_and_rest);
-        dict.insert(key, val);
-        remainder = rest;
-    }
-    //println!("{dict:#?}");
-    return(dict.into(), &remainder[1..])
 }
 
 #[allow(dead_code)]

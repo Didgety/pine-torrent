@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use serde::Deserialize;
 
-use super::hash::Hashes;
+use super::{hash::Hashes, b_encoding::BEncodedData};
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
@@ -63,7 +63,14 @@ struct File {
     path: Vec<String>,
 }
 
-pub fn read_torrent(file: PathBuf) -> serde_json::Value {
-    let contents = std::fs::read(file).expect("Failed reading file");
-    crate::b_encoding::decode_bencoded_value(&contents).0
+// pub fn read_torrent(file: PathBuf) -> serde_json::Value {
+//     let contents = std::fs::read(file).expect("Failed reading file");
+//     crate::b_encoding::decode_bencoded_value(&contents).0
+// }
+
+pub fn read_torrent(file: PathBuf) -> BEncodedData {
+    let contents: &[u8] = &std::fs::read(file).expect("Failed reading file");
+    let (_, decoded_file) = crate::b_encoding::decode_bencoded_value(contents);
+
+    decoded_file
 }
