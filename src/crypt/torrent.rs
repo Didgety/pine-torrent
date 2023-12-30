@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use serde::Deserialize;
 
 use super::hash::Hashes;
@@ -61,7 +63,7 @@ struct File {
     path: Vec<String>,
 }
 
-pub fn read_torrent(file: &str) -> serde_json::Value {
+pub fn read_torrent(file: PathBuf) -> serde_json::Value {
     let contents = std::fs::read(file).expect("Failed reading file");
     crate::b_encoding::decode_bencoded_value(&contents).0
 }
