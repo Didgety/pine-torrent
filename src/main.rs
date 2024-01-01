@@ -1,5 +1,7 @@
 mod crypt;
 use crypt::b_encoding;
+
+use anyhow::Context;
 // use serde_json;
 use clap::{ Parser, Subcommand };
 use std::{ env, path::PathBuf };
@@ -13,8 +15,7 @@ struct Args {
     command: Command,
 }
 
-#[derive(Debug)]
-#[derive(Subcommand)]
+#[derive(Subcommand, Debug)]
 enum Command {
     Decode {
         encoded_value: String,
@@ -57,7 +58,7 @@ fn main() {
 
             match decoded_file {
                 BEncodedData::Dict(d) => {
-                    let tracker = d.get_key_value(&BEStr::from_str("announce")).unwrap().1;
+                    let tracker = d.get_key_value(&BEStr::from("announce")).unwrap().1;
                     match tracker {
                         BEncodedData::ByteStr(t) => {
                             println!("Tracker: {}", t.to_string());
@@ -65,10 +66,10 @@ fn main() {
                         _ => {}
                     }
                     
-                    let len_dict = d.get_key_value(&BEStr::from_str("info")).unwrap().1;
+                    let len_dict = d.get_key_value(&BEStr::from("info")).unwrap().1;
                     match len_dict {
                         BEncodedData::Dict(d_l) => {
-                            let len = d_l.get_key_value(&BEStr::from_str("length")).unwrap().1;
+                            let len = d_l.get_key_value(&BEStr::from("length")).unwrap().1;
                             println!("Length: {:#?}", len.to_string());
                         }
                         _ => {
