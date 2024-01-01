@@ -1,4 +1,4 @@
-use anyhow::Context;
+// use anyhow::Context;
 use core::fmt;
 
 #[cfg(not(feature = "std"))]
@@ -33,21 +33,31 @@ pub type BEList = Vec<BEncodedData>;
 #[derive(Debug, PartialEq, Hash, Eq, PartialOrd, Ord, Clone)]
 pub struct BEStr ( Vec<u8> );
 
+// TODO replace with type impl for Type::from(value)
 impl BEStr {
     pub fn len(&self) -> usize {
         self.0.len()
     }
+}
 
-    pub fn from_slice(val: &[u8]) -> Self {
+/// Convert to BEStr from slice
+impl From<&[u8]> for BEStr {
+    fn from(val: &[u8]) -> Self {
         let vec = Vec::from(val);
         BEStr(vec)
     }
+}
 
-    pub fn from_vec(val: Vec<u8>) -> Self {
+/// Convert to BEStr from a Vec of u8's
+impl From<Vec<u8>> for BEStr {
+    fn from(val: Vec<u8>) -> Self {
         BEStr(val)
     }
+}
 
-    pub fn from_str(val: &str) -> Self {
+/// Convert to BEStr from a str reference
+impl From<&str> for BEStr {
+    fn from(val: &str) -> Self {
         BEStr(val.as_bytes().to_vec())
     }
 }
@@ -56,6 +66,26 @@ impl BEStr {
 impl From<&BEStr> for String {
     fn from(val: &BEStr) -> Self {
         String::from_utf8_lossy(&val.0).to_string()
+    }
+}
+
+/// Convert to Byte Array from BEncoded String
+impl From<&BEStr> for Vec<u8> {
+    fn from(val: &BEStr) -> Self {
+        val.0.clone()
+    }
+}
+
+impl From<&BEStr> for serde_json::Value {
+    fn from(val: &BEStr) -> Self {
+        match val.0.is_ascii() {
+            true => serde_json::Value::String(String::from(val)),
+            false => serde_json::Value::Array(
+                val.0.iter()
+                    .map(|&c| serde_json::Value::Number(c.into()))
+                    .collect(),
+            ),
+        }
     }
 }
 
@@ -115,32 +145,18 @@ impl fmt::Display for BEncodedData {
 pub fn decode_bencoded_value<V: AsRef<[u8]> + std::fmt::Debug>(encoded_value: V) 
 -> (usize, BEncodedData) {
     let first = encoded_value.as_ref()[0];
-    // println!("first {}", first.to_string());
+
     match first {
         b'i' => {
-            // println!("int {}", first.to_string());
-            // let(idx, val) = d_i(&encoded_value);
-            // println!("int end idx {} val {}", idx, val);
             return decode_int(encoded_value)
         }
         b'l' => {
-            // println!("list {}", first.to_string());
-            // let(idx, val) = d_l(&encoded_value);
-            // println!("list end idx {} val {}", idx, val);
             return decode_list(encoded_value)
         }
         b'd' => {
-            // println!("dict {}", first.to_string());
-            // let(idx, val) = d_d(&encoded_value);
-            // println!("dict end idx {} val {}", idx, val);
-            //let (val, _) = decode_dict(encoded_value.as_ref());
-            //println!("{val}");
             return decode_dict(encoded_value)
         }
         b'0'..=b'9' => {
-            // println!("str {}", first.to_string());
-            // let(idx, val) = d_s(&encoded_value);
-            // println!("str end idx {} val {}", idx, val);
             return decode_str(encoded_value)
         }
         _ => {
@@ -172,7 +188,7 @@ fn decode_int<I: AsRef<[u8]>>(encoded_num: I) -> (usize, BEncodedData) {
 /// No validation of len is done
 fn decode_str<S: AsRef<[u8]>>(encoded_value: S) -> (usize, BEncodedData) {
     let encoded_value = encoded_value.as_ref();
-    println!("processing string: \n{}", BEStr::from_slice(encoded_value));
+    println!("processing string: \n{}", BEStr::from(encoded_value));
 
     let delim_idx = encoded_value.iter().position(|&d| d == b':').unwrap();
     let (len, _) = {
