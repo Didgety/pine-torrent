@@ -31,7 +31,7 @@ enum Command {
 
 // Usage: your_bittorrent.sh decode "<encoded_value>"
 //        your_bittorrent.sh info <filename>.torrent
-fn main() {
+fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     match args.command {
@@ -39,6 +39,8 @@ fn main() {
             let (_, decoded_value) = b_encoding::decode_bencoded_value(encoded_value);
             //let (decoded_value, _) = b_encoding::decode_bencoded_value(encoded_value.as_bytes());
             println!("{}", decoded_value.to_string());
+
+            Ok(())
         }
         Command::Encode {} => {
             // println!("{:#?}", args[2]);
@@ -52,45 +54,49 @@ fn main() {
             // // println!("{}", b_encoding::decode_bencoded_value(encoded_value.as_slice()).0);
             // // println!("{}", encoded_value);
             // println!("{}", b_encoding::decode_bencoded_value(encoded_value.as_slice()).0);
+            Ok(())
         }
         Command::Info { torrent } => {                 
-            let decoded_file = crypt::torrent::read_torrent(torrent);
+            let _decoded_file = crypt::torrent::read_torrent(torrent);
 
-            match decoded_file {
-                BEncodedData::Dict(d) => {
-                    let tracker = d.get_key_value(&BEStr::from("announce")).unwrap().1;
-                    match tracker {
-                        BEncodedData::ByteStr(t) => {
-                            println!("Tracker: {}", t.to_string());
-                        }
-                        _ => {}
-                    }
+            // match decoded_file {
+            //     BEncodedData::Dict(d) => {
+            //         let tracker = d.get_key_value(&BEStr::from("announce")).unwrap().1;
+            //         match tracker {
+            //             BEncodedData::ByteStr(t) => {
+            //                 println!("Tracker: {}", t.to_string());
+            //             }
+            //             _ => {}
+            //         }
                     
-                    let len_dict = d.get_key_value(&BEStr::from("info")).unwrap().1;
-                    match len_dict {
-                        BEncodedData::Dict(d_l) => {
-                            let len = d_l.get_key_value(&BEStr::from("length")).unwrap().1;
-                            println!("Length: {:#?}", len.to_string());
-                        }
-                        _ => {
-                            println!("Length key in info dict missing");
-                        }
-                    }
-                }
-                _ => {
-                    println!("Not a valid file");
-                }
-            }
-
+            //         let len_dict = d.get_key_value(&BEStr::from("info")).unwrap().1;
+            //         match len_dict {
+            //             BEncodedData::Dict(d_l) => {
+            //                 let len = d_l.get_key_value(&BEStr::from("length")).unwrap().1;
+            //                 println!("Length: {:#?}", len.to_string());
+            //             }
+            //             _ => {
+            //                 println!("Length key in info dict missing");
+            //             }
+            //         }
+            //         Ok(())
+            //     }
+            //     _ => {
+            //         println!("Not a valid file");
+            //         Ok(())
+            //     }
+            // }
+            Ok(())
             // let tracker = decoded_file.["announce"].as_str().unwrap();
             // println!("Tracker: {:#?}", tracker);
             // let len = decoded_file["info"]["length"].as_i64().unwrap();
             // println!("Length: {:#?}", len);
         }
-        _ => {
-            let args: Vec<String> = env::args().collect();
-            let command = &args[1];
-            println!("unknown command: {}", command)
-        }
+        // _ => {
+        //     let args: Vec<String> = env::args().collect();
+        //     let command = &args[1];
+        //     println!("unknown command: {}", command);
+        //     Ok(())
+        // }
     }
 }

@@ -188,7 +188,7 @@ fn decode_int<I: AsRef<[u8]>>(encoded_num: I) -> (usize, BEncodedData) {
 /// No validation of len is done
 fn decode_str<S: AsRef<[u8]>>(encoded_value: S) -> (usize, BEncodedData) {
     let encoded_value = encoded_value.as_ref();
-    println!("processing string: \n{}", BEStr::from(encoded_value));
+    //println!("processing string: \n{}", BEStr::from(encoded_value));
 
     let delim_idx = encoded_value.iter().position(|&d| d == b':').unwrap();
     let (len, _) = {
@@ -197,7 +197,7 @@ fn decode_str<S: AsRef<[u8]>>(encoded_value: S) -> (usize, BEncodedData) {
 
     let len = std::str::from_utf8(len).unwrap()
         .parse::<usize>().unwrap();
-    println!("str len {}\n", len);
+    //println!("str len {}\n", len);
 
     let text = BEStr(
         encoded_value[delim_idx + 1..delim_idx + 1 + len].to_vec()
@@ -234,9 +234,9 @@ fn decode_list<L: AsRef<[u8]>>(encoded_list: L) -> (usize, BEncodedData) {
         }
     }
 
-    println!("evaluated list {:#?}", String::from_utf8_lossy(encoded_list));
+    //println!("evaluated list {:#?}", String::from_utf8_lossy(encoded_list));
     // println!("list vals: {:#?}", vals);
-    println!("vals len: {}, end_idx {}", vals.len(), end_idx);
+    //println!("vals len: {}, end_idx {}", vals.len(), end_idx);
 
     return (end_idx + 1, BEncodedData::List(vals))
 }
@@ -257,7 +257,7 @@ fn decode_dict<D: AsRef<[u8]>>(encoded_dict: D) -> (usize, BEncodedData) {
 
                 let key = match key {
                     BEncodedData::ByteStr(s) => s,
-                    data => panic!("Dict key is not a string: {data:#?}"),
+                    data => panic!("Dict key is not a string: {:?}", data.to_string()),
                 };
 
                 encoded_dict = &encoded_dict[key_idx..];

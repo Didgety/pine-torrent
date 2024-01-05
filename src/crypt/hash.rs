@@ -1,9 +1,10 @@
 use std::fmt;
 
-use serde::de::{self, Deserialize, Deserializer, Visitor};
+use serde::{de::{self, Deserialize, Deserializer, Visitor},
+            ser::{Serialize, Serializer}};
 
 #[derive(Debug, Clone)]
-pub(crate) struct Hashes(Vec<[u8; 20]>);
+pub struct Hashes(pub Vec<[u8; 20]>);
 
 struct HashVisitor;
 
@@ -36,5 +37,15 @@ impl<'de> Deserialize<'de> for Hashes {
     where D: Deserializer<'de>,
     {
         deserializer.deserialize_bytes(HashVisitor)
+    }
+}
+
+impl Serialize for Hashes {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+    {
+        let slice = self.0.concat();
+        serializer.serialize_bytes(&slice)
     }
 }
